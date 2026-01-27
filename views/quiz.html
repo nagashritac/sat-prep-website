@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz - SAT Prep</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/questions.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/dashboard.html" class="nav-brand">SAT Prep</a>
+        <div class="nav-user">
+            <span id="username-display">Student</span>
+            <a href="/dashboard.html" class="btn btn-outline">Back to Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="quiz-container">
+        <div class="quiz-header">
+            <h1 id="quiz-title">Loading...</h1>
+            <div class="level-indicator">
+                <span id="level-badge" class="level-badge">Level 1</span>
+                <span class="pass-requirement">Need 80% to pass</span>
+            </div>
+            <div class="timer-section">
+                <div class="timer-display" id="timer-display">
+                    <div class="timer-icon">⏱</div>
+                    <div class="timer-text" id="timer-text">1:00</div>
+                </div>
+                <button class="btn btn-pause" id="pause-btn" onclick="togglePause()">
+                    <span id="pause-icon">⏸</span> <span id="pause-text">Pause</span>
+                </button>
+            </div>
+            <div class="score-display">
+                Score: <span id="score">0</span> / <span id="total">15</span>
+            </div>
+            <div class="question-counter">
+                Question <span id="current-question">1</span> of <span id="total-questions">15</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+
+        <div id="quiz-content">
+            <div class="question" id="question-text"></div>
+            <div class="answers" id="answers-container"></div>
+            <div class="feedback" id="feedback"></div>
+            <button class="btn btn-primary next-btn" id="next-btn" onclick="nextQuestion()">
+                Next Question
+            </button>
+        </div>
+
+        <!-- Pause Overlay -->
+        <div class="pause-overlay" id="pause-overlay">
+            <div class="pause-modal">
+                <div class="pause-icon-large">⏸</div>
+                <h2>Quiz Paused</h2>
+                <p>Your progress has been saved. You can close this page and come back later. The timer will reset when you resume.</p>
+                <div class="pause-info">
+                    <div class="pause-stat">
+                        <span class="pause-stat-value" id="pause-question">1/15</span>
+                        <span class="pause-stat-label">Question</span>
+                    </div>
+                    <div class="pause-stat">
+                        <span class="pause-stat-value" id="pause-score">0</span>
+                        <span class="pause-stat-label">Current Score</span>
+                    </div>
+                    <div class="pause-stat">
+                        <span class="pause-stat-value" id="pause-timer-reset">1:00</span>
+                        <span class="pause-stat-label">Timer on Resume</span>
+                    </div>
+                </div>
+                <div class="pause-buttons">
+                    <button class="btn btn-primary" onclick="resumeQuiz()">Resume Quiz</button>
+                    <a href="/dashboard.html" class="btn btn-outline">Save & Exit</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="results" id="results">
+            <div id="result-status" class="result-status">
+                <!-- Pass or Fail banner -->
+            </div>
+            <h2 id="result-title">Quiz Complete!</h2>
+            <div class="final-score" id="final-score">0%</div>
+            <div class="score-text" id="score-summary"></div>
+            <div class="message" id="result-message"></div>
+
+            <div class="wrong-answers-section" id="wrong-answers-section">
+                <h3>Questions to Review</h3>
+                <div id="wrong-answers-list"></div>
+            </div>
+
+            <div class="result-buttons" id="result-buttons">
+                <!-- Buttons will be added dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get subject and level from URL (can be overridden when resuming)
+        const urlParams = new URLSearchParams(window.location.search);
+        let subject = urlParams.get('subject') || 'math';
+        let level = parseInt(urlParams.get('level')) || 1;
+        const retryMode = urlParams.get('retry'); // 'wrong' for wrong-only retry
+        const retryQuestions = urlParams.get('questions'); // comma-separated question IDs
+        const resumeId = urlParams.get('resume'); // ID of paused quiz to resume
+
+        const PASS_PERCENTAGE = 80;
+
+        // Timer durations in seconds (progressive by level)
+        const TIMER_DURATIONS = {
+            math: { 1: 60, 2: 75, 3: 90, 4: 105, 5: 120 },      // 1min to 2min
+            ela: { 1: 120, 2: 150, 3: 180, 4: 210, 5: 240 }     // 2min to 4min
+        };
+
+        // Quiz state
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let hasAnswered = false;
+        let wrongAnswers = [];
+        let timerInterval = null;
+        let timeRemaining = 0;
+        let unansweredQuestions = [];
+        let isPaused = false;
+        let pausedQuizId = null; // Track if this is a resumed quiz
+
+        const levelDescriptions = {
+            math: { 1: "Basic Arithmetic", 2: "Percentages & Geometry", 3: "Linear Equations", 4: "Quadratics & Systems", 5: "Advanced Algebra" },
+            ela: { 1: "Vocabulary & Grammar", 2: "Sentence Structure", 3: "Reading Comprehension", 4: "Rhetoric & Analysis", 5: "SAT-Level Reading" }
+        };
+
+        // Initialize
+        async function init() {
+            // Check auth
+            const userResponse = await fetch('/api/user');
+            const userData = await userResponse.json();
+
+            if (!userData.loggedIn) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            document.getElementById('username-display').textContent = userData.username;
+
+            // Check if resuming a paused quiz
+            if (resumeId) {
+                await loadPausedQuiz(resumeId);
+                return;
+            }
+
+            // Check if level is unlocked
+            const progressResponse = await fetch('/api/progress');
+            const progressData = await progressResponse.json();
+
+            if (progressData.success) {
+                const currentLevel = progressData.progress[subject].currentLevel;
+                if (level > currentLevel) {
+                    alert('This level is locked! Pass the previous level first.');
+                    window.location.href = '/dashboard.html';
+                    return;
+                }
+            }
+
+            // Load questions for this level
+            if (QUESTIONS && QUESTIONS[subject] && QUESTIONS[subject][level]) {
+                const allLevelQuestions = [...QUESTIONS[subject][level]];
+
+                // Check if this is a "wrong questions only" retry
+                if (retryMode === 'wrong' && retryQuestions) {
+                    const questionIds = retryQuestions.split(',');
+                    questions = allLevelQuestions.filter(q => questionIds.includes(q.id));
+
+                    if (questions.length === 0) {
+                        alert('No questions to retry.');
+                        window.location.href = '/dashboard.html';
+                        return;
+                    }
+                } else {
+                    questions = allLevelQuestions;
+                }
+            } else {
+                alert('Questions not found for this level.');
+                window.location.href = '/dashboard.html';
+                return;
+            }
+
+            // Update UI
+            const subjectName = subject === 'math' ? 'Math' : 'ELA';
+            let titleText = `${subjectName} - ${levelDescriptions[subject][level]}`;
+            if (retryMode === 'wrong') {
+                titleText += ' (Retry Wrong)';
+            }
+            document.getElementById('quiz-title').textContent = titleText;
+            document.getElementById('level-badge').textContent = `Level ${level}`;
+            document.getElementById('total').textContent = questions.length;
+            document.getElementById('total-questions').textContent = questions.length;
+
+            displayQuestion();
+        }
+
+        // Load a paused quiz
+        async function loadPausedQuiz(id) {
+            try {
+                const response = await fetch(`/api/paused-quiz/${id}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    alert('Could not find paused quiz.');
+                    window.location.href = '/dashboard.html';
+                    return;
+                }
+
+                const saved = data.quiz;
+                pausedQuizId = saved.id;
+
+                // Update global subject and level from saved quiz
+                subject = saved.subject;
+                level = saved.level;
+
+                // Load questions based on saved state
+                const allLevelQuestions = [...QUESTIONS[saved.subject][saved.level]];
+                const questionIds = JSON.parse(saved.question_ids);
+                questions = questionIds.map(id => allLevelQuestions.find(q => q.id === id)).filter(q => q);
+
+                // Restore state
+                currentQuestionIndex = saved.current_question;
+                score = saved.score;
+                wrongAnswers = JSON.parse(saved.wrong_answers || '[]');
+                unansweredQuestions = JSON.parse(saved.unanswered || '[]');
+                // Reset timer to full duration for the question (fresh start on resume)
+                timeRemaining = TIMER_DURATIONS[saved.subject][saved.level];
+
+                // Update UI
+                const subjectName = saved.subject === 'math' ? 'Math' : 'ELA';
+                document.getElementById('quiz-title').textContent = `${subjectName} - ${levelDescriptions[saved.subject][saved.level]} (Resumed)`;
+                document.getElementById('level-badge').textContent = `Level ${saved.level}`;
+                document.getElementById('total').textContent = questions.length;
+                document.getElementById('total-questions').textContent = questions.length;
+                document.getElementById('score').textContent = score;
+
+                displayQuestionResumed();
+            } catch (error) {
+                console.error('Error loading paused quiz:', error);
+                alert('Error loading paused quiz.');
+                window.location.href = '/dashboard.html';
+            }
+        }
+
+        // Display question when resuming (resets timer to full duration)
+        function displayQuestionResumed() {
+            const q = questions[currentQuestionIndex];
+
+            document.getElementById('question-text').textContent = `${currentQuestionIndex + 1}. ${q.question}`;
+            document.getElementById('current-question').textContent = currentQuestionIndex + 1;
+
+            const progress = (currentQuestionIndex / questions.length) * 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+
+            const container = document.getElementById('answers-container');
+            container.innerHTML = '';
+
+            const letters = ['A', 'B', 'C', 'D'];
+
+            q.answers.forEach((answer, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'answer-btn';
+                btn.innerHTML = `
+                    <span class="letter">${letters[index]}</span>
+                    <span class="text">${answer}</span>
+                `;
+                btn.addEventListener('click', () => checkAnswer(index));
+                container.appendChild(btn);
+            });
+
+            hasAnswered = false;
+            document.getElementById('feedback').className = 'feedback';
+            document.getElementById('feedback').textContent = '';
+            document.getElementById('next-btn').style.display = 'none';
+
+            // Start timer with saved time remaining
+            startTimerWithTime(timeRemaining);
+        }
+
+        function startTimerWithTime(time) {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+
+            timeRemaining = time;
+            updateTimerDisplay();
+
+            const timerDisplay = document.getElementById('timer-display');
+            timerDisplay.classList.remove('warning', 'danger');
+
+            if (timeRemaining <= 10) {
+                timerDisplay.classList.add('danger');
+            } else if (timeRemaining <= 30) {
+                timerDisplay.classList.add('warning');
+            }
+
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+
+                if (timeRemaining <= 10) {
+                    timerDisplay.classList.add('danger');
+                } else if (timeRemaining <= 30) {
+                    timerDisplay.classList.add('warning');
+                }
+
+                if (timeRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        // Toggle pause
+        function togglePause() {
+            if (hasAnswered) return; // Don't pause if already answered
+
+            if (isPaused) {
+                resumeQuiz();
+            } else {
+                pauseQuiz();
+            }
+        }
+
+        // Pause the quiz
+        async function pauseQuiz() {
+            isPaused = true;
+
+            // Stop timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+
+            // Update pause button
+            document.getElementById('pause-icon').textContent = '▶';
+            document.getElementById('pause-text').textContent = 'Resume';
+
+            // Update pause overlay info
+            document.getElementById('pause-question').textContent = `${currentQuestionIndex + 1}/${questions.length}`;
+            document.getElementById('pause-score').textContent = score;
+            // Show full timer duration (timer resets on resume)
+            const fullTime = TIMER_DURATIONS[subject][level];
+            const minutes = Math.floor(fullTime / 60);
+            const seconds = fullTime % 60;
+            document.getElementById('pause-timer-reset').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            // Show overlay
+            document.getElementById('pause-overlay').classList.add('active');
+
+            // Save to server
+            await saveQuizState();
+        }
+
+        // Resume the quiz
+        function resumeQuiz() {
+            isPaused = false;
+
+            // Update pause button
+            document.getElementById('pause-icon').textContent = '⏸';
+            document.getElementById('pause-text').textContent = 'Pause';
+
+            // Hide overlay
+            document.getElementById('pause-overlay').classList.remove('active');
+
+            // Restart timer with FULL duration (timer resets on resume)
+            const fullTime = TIMER_DURATIONS[subject][level];
+            startTimerWithTime(fullTime);
+        }
+
+        // Save quiz state to server
+        async function saveQuizState() {
+            const questionIds = questions.map(q => q.id);
+
+            try {
+                const response = await fetch('/api/pause-quiz', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: pausedQuizId, // null for new, or existing ID to update
+                        subject,
+                        level,
+                        questionIds,
+                        currentQuestion: currentQuestionIndex,
+                        score,
+                        wrongAnswers,
+                        unanswered: unansweredQuestions,
+                        timeRemaining
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success && data.id) {
+                    pausedQuizId = data.id;
+                }
+            } catch (error) {
+                console.error('Error saving quiz state:', error);
+            }
+        }
+
+        function displayQuestion() {
+            const q = questions[currentQuestionIndex];
+
+            document.getElementById('question-text').textContent = `${currentQuestionIndex + 1}. ${q.question}`;
+            document.getElementById('current-question').textContent = currentQuestionIndex + 1;
+
+            const progress = (currentQuestionIndex / questions.length) * 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+
+            const container = document.getElementById('answers-container');
+            container.innerHTML = '';
+
+            const letters = ['A', 'B', 'C', 'D'];
+
+            q.answers.forEach((answer, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'answer-btn';
+                btn.innerHTML = `
+                    <span class="letter">${letters[index]}</span>
+                    <span class="text">${answer}</span>
+                `;
+                btn.addEventListener('click', () => checkAnswer(index));
+                container.appendChild(btn);
+            });
+
+            hasAnswered = false;
+            document.getElementById('feedback').className = 'feedback';
+            document.getElementById('feedback').textContent = '';
+            document.getElementById('next-btn').style.display = 'none';
+
+            // Start timer
+            startTimer();
+        }
+
+        function startTimer() {
+            // Clear any existing timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+
+            // Get time for this subject/level
+            timeRemaining = TIMER_DURATIONS[subject][level];
+            updateTimerDisplay();
+
+            const timerDisplay = document.getElementById('timer-display');
+            timerDisplay.classList.remove('warning', 'danger');
+
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+
+                // Visual warnings
+                if (timeRemaining <= 10) {
+                    timerDisplay.classList.add('danger');
+                } else if (timeRemaining <= 30) {
+                    timerDisplay.classList.add('warning');
+                }
+
+                // Time's up!
+                if (timeRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            document.getElementById('timer-text').textContent =
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function handleTimeout() {
+            if (hasAnswered) return; // Already answered
+            hasAnswered = true;
+
+            const q = questions[currentQuestionIndex];
+            const buttons = document.querySelectorAll('.answer-btn');
+            const feedback = document.getElementById('feedback');
+
+            // Mark as wrong/unanswered
+            wrongAnswers.push(q.id);
+            unansweredQuestions.push(q.id);
+
+            buttons.forEach(btn => btn.disabled = true);
+            buttons[q.correct].classList.add('correct');
+
+            feedback.textContent = "⏱ Time's up! " + q.explanation;
+            feedback.className = 'feedback timeout';
+
+            const nextBtn = document.getElementById('next-btn');
+            nextBtn.style.display = 'block';
+            nextBtn.textContent = currentQuestionIndex === questions.length - 1 ? 'See Results' : 'Next Question';
+        }
+
+        function checkAnswer(selected) {
+            if (hasAnswered) return;
+            hasAnswered = true;
+
+            // Stop the timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+
+            const q = questions[currentQuestionIndex];
+            const buttons = document.querySelectorAll('.answer-btn');
+            const feedback = document.getElementById('feedback');
+
+            buttons.forEach(btn => btn.disabled = true);
+
+            if (selected === q.correct) {
+                score++;
+                document.getElementById('score').textContent = score;
+                buttons[selected].classList.add('correct');
+                feedback.textContent = 'Correct! ' + q.explanation;
+                feedback.className = 'feedback correct';
+            } else {
+                wrongAnswers.push(q.id);
+                buttons[selected].classList.add('wrong');
+                buttons[q.correct].classList.add('correct');
+                feedback.textContent = 'Incorrect. ' + q.explanation;
+                feedback.className = 'feedback wrong';
+            }
+
+            const nextBtn = document.getElementById('next-btn');
+            nextBtn.style.display = 'block';
+            nextBtn.textContent = currentQuestionIndex === questions.length - 1 ? 'See Results' : 'Next Question';
+        }
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+
+            if (currentQuestionIndex < questions.length) {
+                displayQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        async function showResults() {
+            // Stop timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+
+            document.getElementById('quiz-content').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+
+            const percentage = Math.round((score / questions.length) * 100);
+            const passed = percentage >= PASS_PERCENTAGE;
+
+            // Show pass/fail status
+            const statusDiv = document.getElementById('result-status');
+            if (passed) {
+                statusDiv.className = 'result-status passed';
+                statusDiv.innerHTML = '<span class="status-icon">✓</span> PASSED!';
+            } else {
+                statusDiv.className = 'result-status failed';
+                statusDiv.innerHTML = '<span class="status-icon">✗</span> NOT PASSED';
+            }
+
+            document.getElementById('final-score').textContent = percentage + '%';
+            document.getElementById('score-summary').textContent = `You got ${score} out of ${questions.length} correct`;
+
+            const message = document.getElementById('result-message');
+            if (passed) {
+                if (level < 5) {
+                    message.textContent = `Congratulations! You've unlocked Level ${level + 1}!`;
+                } else {
+                    message.textContent = "Amazing! You've mastered all levels!";
+                }
+            } else {
+                message.textContent = `You need ${PASS_PERCENTAGE}% to pass. Review the questions below and try again!`;
+            }
+
+            // Show wrong answers
+            const wrongSection = document.getElementById('wrong-answers-section');
+            const wrongList = document.getElementById('wrong-answers-list');
+
+            if (wrongAnswers.length > 0) {
+                wrongSection.style.display = 'block';
+                wrongList.innerHTML = '';
+
+                const letters = ['A', 'B', 'C', 'D'];
+                wrongAnswers.forEach(qId => {
+                    const q = questions.find(question => question.id === qId);
+                    if (!q) return;
+
+                    const wasTimeout = unansweredQuestions.includes(qId);
+
+                    const div = document.createElement('div');
+                    div.className = 'wrong-answer-card' + (wasTimeout ? ' timeout-card' : '');
+                    div.innerHTML = `
+                        ${wasTimeout ? '<div class="timeout-badge">⏱ Time Expired</div>' : ''}
+                        <div class="wrong-question">${q.question}</div>
+                        <div class="correct-answer">Correct: ${letters[q.correct]}) ${q.answers[q.correct]}</div>
+                        <div class="explanation">${q.explanation}</div>
+                    `;
+                    wrongList.appendChild(div);
+                });
+            } else {
+                wrongSection.style.display = 'none';
+            }
+
+            document.getElementById('progress-fill').style.width = '100%';
+
+            // Delete paused quiz if this was a resumed quiz
+            if (pausedQuizId) {
+                try {
+                    await fetch(`/api/paused-quiz/${pausedQuizId}`, { method: 'DELETE' });
+                } catch (e) {
+                    console.error('Error deleting paused quiz:', e);
+                }
+            }
+
+            // Save result to server
+            const quizQuestionIds = questions.map(q => q.id);
+
+            try {
+                const response = await fetch('/api/save-result', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subject,
+                        level,
+                        score,
+                        totalQuestions: questions.length,
+                        percentage,
+                        wrongAnswers,
+                        quizQuestions: quizQuestionIds
+                    })
+                });
+
+                const data = await response.json();
+
+                // Update result title with test name
+                if (data.testName) {
+                    document.getElementById('result-title').textContent = data.testName;
+                }
+
+                // Add appropriate buttons
+                const buttonsDiv = document.getElementById('result-buttons');
+                buttonsDiv.innerHTML = '';
+
+                if (passed && level < 5) {
+                    // Next Level button
+                    const nextLevelBtn = document.createElement('button');
+                    nextLevelBtn.className = 'btn btn-primary';
+                    nextLevelBtn.textContent = `Start Level ${level + 1}`;
+                    nextLevelBtn.onclick = () => {
+                        window.location.href = `/quiz.html?subject=${subject}&level=${level + 1}`;
+                    };
+                    buttonsDiv.appendChild(nextLevelBtn);
+                }
+
+                // Retry Wrong Questions Only button (only if there are wrong answers)
+                if (wrongAnswers.length > 0) {
+                    const retryWrongBtn = document.createElement('button');
+                    retryWrongBtn.className = passed ? 'btn btn-secondary' : 'btn btn-primary';
+                    retryWrongBtn.textContent = `Retry Wrong (${wrongAnswers.length})`;
+                    retryWrongBtn.onclick = () => {
+                        const wrongIds = wrongAnswers.join(',');
+                        window.location.href = `/quiz.html?subject=${subject}&level=${level}&retry=wrong&questions=${wrongIds}`;
+                    };
+                    buttonsDiv.appendChild(retryWrongBtn);
+                }
+
+                // Retake Full Test button (same questions)
+                const retakeBtn = document.createElement('button');
+                retakeBtn.className = 'btn btn-secondary';
+                retakeBtn.textContent = 'Retake Full Test';
+                retakeBtn.onclick = () => {
+                    // Reload same quiz without retry params
+                    window.location.href = `/quiz.html?subject=${subject}&level=${level}`;
+                };
+                buttonsDiv.appendChild(retakeBtn);
+
+                // Back to Dashboard
+                const dashBtn = document.createElement('a');
+                dashBtn.href = '/dashboard.html';
+                dashBtn.className = 'btn btn-outline';
+                dashBtn.textContent = 'Back to Dashboard';
+                buttonsDiv.appendChild(dashBtn);
+
+            } catch (error) {
+                console.error('Error saving result:', error);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

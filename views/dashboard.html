@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SAT Prep</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">SAT Prep</div>
+        <div class="nav-user">
+            <span id="username-display">Welcome!</span>
+            <button class="btn btn-outline" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <!-- Welcome section -->
+        <div class="welcome-section">
+            <h1>Welcome back, <span id="user-name">Student</span>!</h1>
+            <p>Choose a subject and level to practice. Score 80% or higher to unlock the next level!</p>
+        </div>
+
+        <!-- Subject Tabs -->
+        <div class="subject-tabs">
+            <button class="tab-btn active" onclick="switchSubject('math')">
+                <span class="tab-icon">📐</span> Math
+            </button>
+            <button class="tab-btn" onclick="switchSubject('ela')">
+                <span class="tab-icon">📚</span> ELA
+            </button>
+        </div>
+
+        <!-- Paused Quizzes Section -->
+        <div class="paused-section" id="paused-section" style="display: none;">
+            <h3>⏸ Continue Where You Left Off</h3>
+            <div id="paused-quizzes-list" class="paused-quizzes-list">
+                <!-- Paused quizzes will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Levels Grid -->
+        <div class="levels-section">
+            <h2><span id="subject-title">Math</span> Levels</h2>
+            <div class="levels-grid" id="levels-grid">
+                <!-- Levels will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="stats-section">
+            <h3>Your <span id="stats-subject">Math</span> Statistics</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-quizzes">0</div>
+                    <div class="stat-label">Quizzes Taken</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="average-score">0%</div>
+                    <div class="stat-label">Average Score</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="best-score">0%</div>
+                    <div class="stat-label">Best Score</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent History -->
+        <div class="history-section">
+            <h3>Recent <span id="history-subject">Math</span> Results</h3>
+            <p class="history-subtitle">Click any result to review questions and explanations</p>
+            <div id="history-list" class="history-list">
+                <p class="no-results">No results yet. Start practicing!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSubject = 'math';
+        let progressData = null;
+        const PASS_PERCENTAGE = 80;
+
+        const levelDescriptions = {
+            math: {
+                1: "Basic Arithmetic",
+                2: "Percentages & Geometry",
+                3: "Linear Equations",
+                4: "Quadratics & Systems",
+                5: "Advanced Algebra"
+            },
+            ela: {
+                1: "Vocabulary & Grammar",
+                2: "Sentence Structure",
+                3: "Reading Comprehension",
+                4: "Rhetoric & Analysis",
+                5: "SAT-Level Reading"
+            }
+        };
+
+        async function checkAuth() {
+            const response = await fetch('/api/user');
+            const data = await response.json();
+
+            if (!data.loggedIn) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            document.getElementById('username-display').textContent = data.username;
+            document.getElementById('user-name').textContent = data.username;
+
+            await loadProgress();
+            await loadPausedQuizzes();
+            loadStats();
+            loadHistory();
+        }
+
+        async function loadPausedQuizzes() {
+            try {
+                const response = await fetch('/api/paused-quizzes');
+                const data = await response.json();
+
+                const section = document.getElementById('paused-section');
+                const list = document.getElementById('paused-quizzes-list');
+
+                if (data.success && data.quizzes.length > 0) {
+                    section.style.display = 'block';
+                    list.innerHTML = '';
+
+                    data.quizzes.forEach(quiz => {
+                        const subjectName = quiz.subject === 'math' ? 'Math' : 'ELA';
+                        const questionIds = JSON.parse(quiz.question_ids);
+                        const progress = Math.round((quiz.current_question / questionIds.length) * 100);
+
+                        const pausedDate = new Date(quiz.paused_at);
+                        const dateStr = pausedDate.toLocaleDateString('en-US', {
+                            month: 'short', day: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                        });
+
+                        const card = document.createElement('div');
+                        card.className = 'paused-quiz-card';
+                        card.innerHTML = `
+                            <div class="paused-quiz-info">
+                                <div class="paused-quiz-title">
+                                    <span class="paused-subject-icon">${quiz.subject === 'math' ? '📐' : '📚'}</span>
+                                    ${subjectName} Level ${quiz.level} - ${levelDescriptions[quiz.subject][quiz.level]}
+                                </div>
+                                <div class="paused-quiz-details">
+                                    <span>Question ${quiz.current_question + 1}/${questionIds.length}</span>
+                                    <span>•</span>
+                                    <span>Score: ${quiz.score}</span>
+                                    <span>•</span>
+                                    <span>Paused: ${dateStr}</span>
+                                    <span>•</span>
+                                    <span class="timer-resets">Timer resets on resume</span>
+                                </div>
+                                <div class="paused-quiz-progress">
+                                    <div class="paused-progress-bar" style="width: ${progress}%"></div>
+                                </div>
+                            </div>
+                            <div class="paused-quiz-actions">
+                                <button class="btn btn-primary btn-small" onclick="resumeQuiz(${quiz.id})">
+                                    ▶ Resume
+                                </button>
+                                <button class="btn btn-outline btn-small" onclick="deletePausedQuiz(${quiz.id})">
+                                    ✕ Discard
+                                </button>
+                            </div>
+                        `;
+                        list.appendChild(card);
+                    });
+                } else {
+                    section.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading paused quizzes:', error);
+            }
+        }
+
+        function resumeQuiz(quizId) {
+            window.location.href = `/quiz.html?resume=${quizId}`;
+        }
+
+        async function deletePausedQuiz(quizId) {
+            if (!confirm('Are you sure you want to discard this paused quiz? Your progress will be lost.')) {
+                return;
+            }
+
+            try {
+                await fetch(`/api/paused-quiz/${quizId}`, { method: 'DELETE' });
+                await loadPausedQuizzes();
+            } catch (error) {
+                console.error('Error deleting paused quiz:', error);
+            }
+        }
+
+        async function loadProgress() {
+            try {
+                const response = await fetch('/api/progress');
+                const data = await response.json();
+
+                if (data.success) {
+                    progressData = data.progress;
+                    renderLevels();
+                }
+            } catch (error) {
+                console.error('Error loading progress:', error);
+            }
+        }
+
+        function renderLevels() {
+            const grid = document.getElementById('levels-grid');
+            const subjectData = progressData[currentSubject];
+            const currentLevel = subjectData.currentLevel;
+            const levelScores = subjectData.levelScores || [];
+
+            grid.innerHTML = '';
+
+            for (let level = 1; level <= 5; level++) {
+                const isUnlocked = level <= currentLevel;
+                const levelScore = levelScores.find(s => s.level === level);
+                const bestScore = levelScore?.best_score || 0;
+                const passed = levelScore?.passed === 1;
+
+                const card = document.createElement('div');
+                card.className = `level-card ${isUnlocked ? 'unlocked' : 'locked'} ${passed ? 'passed' : ''}`;
+
+                if (isUnlocked) {
+                    card.onclick = () => startLevel(level);
+                }
+
+                card.innerHTML = `
+                    <div class="level-header">
+                        <span class="level-number">Level ${level}</span>
+                        ${passed ? '<span class="level-badge passed-badge">✓ Passed</span>' : ''}
+                        ${!isUnlocked ? '<span class="level-badge locked-badge">🔒 Locked</span>' : ''}
+                    </div>
+                    <div class="level-title">${levelDescriptions[currentSubject][level]}</div>
+                    <div class="level-info">15 Questions</div>
+                    ${isUnlocked ? `
+                        <div class="level-score">
+                            ${bestScore > 0 ? `Best: ${bestScore}%` : 'Not attempted'}
+                        </div>
+                        <div class="level-progress">
+                            <div class="level-progress-bar" style="width: ${bestScore}%"></div>
+                        </div>
+                        <button class="btn btn-primary btn-small">
+                            ${bestScore > 0 ? 'Try Again' : 'Start'}
+                        </button>
+                    ` : `
+                        <div class="level-locked-msg">
+                            Pass Level ${level - 1} to unlock
+                        </div>
+                    `}
+                `;
+
+                grid.appendChild(card);
+            }
+        }
+
+        function switchSubject(subject) {
+            currentSubject = subject;
+
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.closest('.tab-btn').classList.add('active');
+
+            // Update titles
+            const subjectName = subject === 'math' ? 'Math' : 'ELA';
+            document.getElementById('subject-title').textContent = subjectName;
+            document.getElementById('stats-subject').textContent = subjectName;
+            document.getElementById('history-subject').textContent = subjectName;
+
+            // Reload content
+            renderLevels();
+            loadStats();
+            loadHistory();
+        }
+
+        function startLevel(level) {
+            window.location.href = `/quiz.html?subject=${currentSubject}&level=${level}`;
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch(`/api/stats?subject=${currentSubject}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('total-quizzes').textContent = data.stats.totalQuizzes;
+                    document.getElementById('average-score').textContent = data.stats.averageScore + '%';
+                    document.getElementById('best-score').textContent = data.stats.bestScore + '%';
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadHistory() {
+            try {
+                const response = await fetch(`/api/results?subject=${currentSubject}`);
+                const data = await response.json();
+                const historyList = document.getElementById('history-list');
+
+                if (data.success && data.results.length > 0) {
+                    historyList.innerHTML = '';
+
+                    // Show only last 5 results
+                    data.results.slice(0, 5).forEach(result => {
+                        const button = document.createElement('button');
+                        button.className = 'history-card-btn';
+                        button.onclick = () => viewTest(result.id);
+
+                        const date = new Date(result.completed_at);
+                        const dateStr = date.toLocaleDateString('en-US', {
+                            month: 'short', day: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                        });
+
+                        let scoreClass = 'score-low';
+                        if (result.percentage >= 80) scoreClass = 'score-high';
+                        else if (result.percentage >= 60) scoreClass = 'score-medium';
+
+                        const wrongCount = result.wrong_answers?.length || 0;
+
+                        button.innerHTML = `
+                            <div class="history-card-content">
+                                <div class="history-left">
+                                    <div class="history-test-name">${result.test_name || 'Quiz'}</div>
+                                    <div class="history-date">${dateStr}</div>
+                                </div>
+                                <div class="history-right">
+                                    <div class="history-score ${scoreClass}">${result.percentage}%</div>
+                                    <div class="history-detail">${result.score}/${result.total_questions}</div>
+                                    ${result.passed
+                                        ? '<div class="history-perfect">✓ Passed</div>'
+                                        : `<div class="history-wrong-count">${wrongCount} wrong</div>`
+                                    }
+                                </div>
+                            </div>
+                            <div class="history-arrow">→</div>
+                        `;
+
+                        historyList.appendChild(button);
+                    });
+                } else {
+                    historyList.innerHTML = '<p class="no-results">No results yet. Start practicing!</p>';
+                }
+            } catch (error) {
+                console.error('Error loading history:', error);
+            }
+        }
+
+        function viewTest(resultId) {
+            window.location.href = `/review.html?id=${resultId}`;
+        }
+
+        async function logout() {
+            await fetch('/logout', { method: 'POST' });
+            window.location.href = '/login.html';
+        }
+
+        checkAuth();
+    </script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - SAT Prep</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h1>SAT Prep</h1>
+            <p class="subtitle">Sign in to track your progress</p>
+
+            <!-- The login form -->
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        required
+                        placeholder="Enter your username"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        required
+                        placeholder="Enter your password"
+                    >
+                </div>
+
+                <!-- Error messages appear here -->
+                <div id="error-message" class="error-message"></div>
+
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+
+            <p class="auth-switch">
+                Don't have an account?
+                <a href="/register.html">Sign up</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        /*
+            This JavaScript handles the login form submission.
+            Instead of a normal form submit (which reloads the page),
+            we use "fetch" to send data to the server without reloading.
+        */
+
+        // Get the form element
+        const form = document.getElementById('login-form');
+        const errorDiv = document.getElementById('error-message');
+
+        // Listen for form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            // preventDefault() stops the form from submitting normally
+
+            // Clear any previous error
+            errorDiv.textContent = '';
+
+            // Get form data
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                // Send login request to server
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                    // JSON.stringify converts the object to a string
+                });
+
+                const data = await response.json();
+                // Parse the JSON response
+
+                if (data.success) {
+                    // Login successful! Go to dashboard
+                    window.location.href = '/dashboard.html';
+                } else {
+                    // Show error message
+                    errorDiv.textContent = data.message;
+                }
+
+            } catch (error) {
+                errorDiv.textContent = 'Connection error. Please try again.';
+            }
+        });
+
+        // Check if already logged in
+        fetch('/api/user')
+            .then(res => res.json())
+            .then(data => {
+                if (data.loggedIn) {
+                    window.location.href = '/dashboard.html';
+                }
+            });
+    </script>
+</body>
+</html>
