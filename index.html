@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!--
+        The <head> section contains metadata about the page.
+        This information isn't displayed on the page itself,
+        but tells the browser how to handle the page.
+    -->
+    <meta charset="UTF-8">
+    <!-- charset="UTF-8" allows the page to display special characters -->
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- This makes the page responsive on mobile devices -->
+
+    <title>SAT Math Practice Test</title>
+    <!-- The title appears in the browser tab -->
+
+    <!--
+        ============================================
+        CSS STYLES
+        ============================================
+        CSS (Cascading Style Sheets) controls how elements look.
+        We're putting it inside <style> tags within the HTML file.
+    -->
+    <style>
+        /*
+            The * selector applies to ALL elements on the page.
+            box-sizing: border-box makes width/height calculations easier
+            by including padding and borders in the total size.
+        */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /*
+            The body is the main container for all visible content.
+            We're setting up a nice gradient background and centering everything.
+        */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* A clean, modern font stack - browser uses first available font */
+
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            /* Creates a diagonal gradient from dark blue to lighter blue */
+
+            min-height: 100vh;
+            /* vh = viewport height. 100vh means full screen height */
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* These 3 lines center the content using Flexbox */
+
+            padding: 20px;
+        }
+
+        /*
+            The main container that holds our quiz.
+            This creates the white "card" effect.
+        */
+        .quiz-container {
+            background: white;
+            border-radius: 20px;
+            /* Rounded corners - higher number = more rounded */
+
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            /* Creates a shadow: horizontal, vertical, blur, color */
+
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            /* max-width prevents it from getting too wide on big screens */
+        }
+
+        /*
+            The header section contains the title and score.
+        */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            /* A subtle line to separate header from content */
+        }
+
+        .header h1 {
+            color: #1e3c72;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        /*
+            The score display box.
+        */
+        .score-display {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            /* Another gradient - purple tones */
+
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            /* Very rounded = pill shape */
+
+            display: inline-block;
+            /* Makes the element only as wide as its content */
+
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /*
+            Shows which question number we're on.
+        */
+        .question-counter {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        /*
+            The question text styling.
+        */
+        .question {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 25px;
+            line-height: 1.6;
+            /* line-height controls spacing between lines of text */
+        }
+
+        /*
+            Container for all the answer buttons.
+        */
+        .answers {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            /* gap creates space between flex items */
+        }
+
+        /*
+            Individual answer button styling.
+            These are the A, B, C, D options.
+        */
+        .answer-btn {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 15px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            /* cursor: pointer shows the hand icon on hover */
+
+            transition: all 0.3s ease;
+            /* Smooth animation when properties change */
+
+            text-align: left;
+            display: flex;
+            align-items: center;
+        }
+
+        /*
+            The letter label (A, B, C, D) inside each button.
+        */
+        .answer-btn .letter {
+            background: #1e3c72;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            /* 50% border-radius on a square = circle */
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 15px;
+            font-weight: bold;
+            flex-shrink: 0;
+            /* Prevents the circle from shrinking */
+        }
+
+        /*
+            Hover effect - what happens when mouse is over button.
+        */
+        .answer-btn:hover:not(:disabled) {
+            /* :not(:disabled) means this won't apply to disabled buttons */
+            border-color: #1e3c72;
+            background: #e8f0fe;
+            transform: translateX(5px);
+            /* Slight movement to the right for a nice effect */
+        }
+
+        /*
+            Style for when an answer is correct.
+            We'll add this class with JavaScript.
+        */
+        .answer-btn.correct {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+
+        .answer-btn.correct .letter {
+            background: #28a745;
+        }
+
+        /*
+            Style for when an answer is wrong.
+        */
+        .answer-btn.wrong {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+
+        .answer-btn.wrong .letter {
+            background: #dc3545;
+        }
+
+        /*
+            Disabled state for buttons after answering.
+        */
+        .answer-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        /*
+            Feedback message that appears after answering.
+        */
+        .feedback {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            text-align: center;
+            display: none;
+            /* Hidden by default - we show it with JavaScript */
+        }
+
+        .feedback.correct {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .feedback.wrong {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        /*
+            The "Next Question" button.
+        */
+        .next-btn {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 15px 40px;
+            font-size: 18px;
+            cursor: pointer;
+            margin-top: 25px;
+            width: 100%;
+            transition: all 0.3s ease;
+            display: none;
+            /* Hidden until user answers */
+        }
+
+        .next-btn:hover {
+            transform: translateY(-2px);
+            /* Moves button up slightly on hover */
+            box-shadow: 0 5px 20px rgba(30, 60, 114, 0.4);
+        }
+
+        /*
+            Results screen shown at the end.
+        */
+        .results {
+            text-align: center;
+            display: none;
+        }
+
+        .results h2 {
+            color: #1e3c72;
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+
+        .results .final-score {
+            font-size: 72px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .results .score-text {
+            font-size: 20px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .results .message {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .restart-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 15px 40px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .restart-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        /*
+            Progress bar at the top of quiz.
+        */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            margin-top: 15px;
+            overflow: hidden;
+            /* Hides the fill when it extends beyond the container */
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+            /* Smooth animation when width changes */
+            width: 0%;
+        }
+    </style>
+</head>
+
+<body>
+    <!--
+        ============================================
+        HTML STRUCTURE
+        ============================================
+        This is the actual content of the page.
+        We'll manipulate these elements with JavaScript.
+    -->
+
+    <div class="quiz-container">
+        <!-- Header with score -->
+        <div class="header">
+            <h1>SAT Math Practice</h1>
+            <div class="score-display">
+                Score: <span id="score">0</span> / <span id="total">5</span>
+                <!--
+                    span elements with IDs let us update these numbers with JavaScript.
+                    IDs must be unique on a page - they're like name tags for elements.
+                -->
+            </div>
+            <div class="question-counter">
+                Question <span id="current-question">1</span> of <span id="total-questions">5</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+
+        <!-- Quiz content area - this is where questions appear -->
+        <div id="quiz-content">
+            <div class="question" id="question-text">
+                <!-- Question text will be inserted here by JavaScript -->
+            </div>
+
+            <div class="answers" id="answers-container">
+                <!-- Answer buttons will be inserted here by JavaScript -->
+            </div>
+
+            <div class="feedback" id="feedback">
+                <!-- Feedback message appears here -->
+            </div>
+
+            <button class="next-btn" id="next-btn" onclick="nextQuestion()">
+                Next Question
+            </button>
+            <!-- onclick="nextQuestion()" tells the button to run that function when clicked -->
+        </div>
+
+        <!-- Results screen (hidden until quiz ends) -->
+        <div class="results" id="results">
+            <h2>Quiz Complete!</h2>
+            <div class="final-score" id="final-score">0%</div>
+            <div class="score-text" id="score-summary">You got 0 out of 5 correct</div>
+            <div class="message" id="result-message"></div>
+            <button class="restart-btn" onclick="restartQuiz()">Try Again</button>
+        </div>
+    </div>
+
+    <!--
+        ============================================
+        JAVASCRIPT
+        ============================================
+        JavaScript makes the page interactive.
+        It's placed at the bottom so the HTML loads first.
+    -->
+    <script>
+        /*
+            ============================================
+            QUESTION DATA
+            ============================================
+            This array stores all our quiz questions.
+            Each question is an "object" with properties.
+        */
+        const questions = [
+            {
+                question: "If 3x + 7 = 22, what is the value of x?",
+                answers: [
+                    "A) 3",
+                    "B) 5",
+                    "C) 7",
+                    "D) 15"
+                ],
+                correct: 1,  // Index of correct answer (B is at index 1)
+                explanation: "Subtract 7 from both sides: 3x = 15. Then divide by 3: x = 5"
+            },
+            {
+                question: "A shirt originally costs $40. If it's on sale for 25% off, what is the sale price?",
+                answers: [
+                    "A) $10",
+                    "B) $15",
+                    "C) $30",
+                    "D) $35"
+                ],
+                correct: 2,  // C
+                explanation: "25% of $40 = $10. Sale price = $40 - $10 = $30"
+            },
+            {
+                question: "If the area of a square is 64 square inches, what is the length of one side?",
+                answers: [
+                    "A) 4 inches",
+                    "B) 8 inches",
+                    "C) 16 inches",
+                    "D) 32 inches"
+                ],
+                correct: 1,  // B
+                explanation: "Area of square = side². So side = √64 = 8 inches"
+            },
+            {
+                question: "Which of the following is equivalent to 2(x + 3) - 4?",
+                answers: [
+                    "A) 2x + 2",
+                    "B) 2x - 1",
+                    "C) 2x + 6",
+                    "D) 2x + 10"
+                ],
+                correct: 0,  // A
+                explanation: "Distribute: 2x + 6 - 4 = 2x + 2"
+            },
+            {
+                question: "A car travels 180 miles in 3 hours. What is its average speed in miles per hour?",
+                answers: [
+                    "A) 45 mph",
+                    "B) 60 mph",
+                    "C) 90 mph",
+                    "D) 540 mph"
+                ],
+                correct: 1,  // B
+                explanation: "Speed = Distance ÷ Time = 180 ÷ 3 = 60 mph"
+            }
+        ];
+
+        /*
+            ============================================
+            VARIABLES TO TRACK QUIZ STATE
+            ============================================
+            These variables keep track of where we are in the quiz.
+        */
+        let currentQuestionIndex = 0;  // Which question we're on (starts at 0)
+        let score = 0;                  // How many correct answers
+        let hasAnswered = false;        // Has the user answered the current question?
+
+        /*
+            ============================================
+            FUNCTIONS
+            ============================================
+            Functions are reusable blocks of code.
+        */
+
+        /*
+            This function displays the current question and its answers.
+            We call it when the page loads and after clicking "Next Question".
+        */
+        function displayQuestion() {
+            // Get the current question object from our array
+            const currentQuestion = questions[currentQuestionIndex];
+
+            // Update the question text
+            // getElementById finds an element by its ID attribute
+            document.getElementById('question-text').textContent = currentQuestion.question;
+
+            // Update the question counter
+            document.getElementById('current-question').textContent = currentQuestionIndex + 1;
+
+            // Update progress bar
+            const progress = (currentQuestionIndex / questions.length) * 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+
+            // Clear previous answers and create new buttons
+            const answersContainer = document.getElementById('answers-container');
+            answersContainer.innerHTML = '';  // Clear existing content
+
+            // Loop through each answer and create a button
+            // forEach runs a function for each item in an array
+            currentQuestion.answers.forEach((answer, index) => {
+                // Create a new button element
+                const button = document.createElement('button');
+                button.className = 'answer-btn';
+
+                // Extract the letter (A, B, C, or D) from the answer
+                const letter = answer.charAt(0);  // Gets first character
+
+                // Set the button's HTML content
+                button.innerHTML = `
+                    <span class="letter">${letter}</span>
+                    <span class="text">${answer.substring(3)}</span>
+                `;
+                // Template literals (backticks) let us insert variables with ${variable}
+                // substring(3) removes "A) " from the beginning
+
+                // Add click event listener
+                // When clicked, run checkAnswer with this answer's index
+                button.addEventListener('click', () => checkAnswer(index));
+
+                // Add the button to the container
+                answersContainer.appendChild(button);
+            });
+
+            // Reset state for new question
+            hasAnswered = false;
+            document.getElementById('feedback').className = 'feedback';  // Hide feedback
+            document.getElementById('next-btn').style.display = 'none';  // Hide next button
+        }
+
+        /*
+            This function checks if the selected answer is correct.
+            It runs when the user clicks an answer button.
+        */
+        function checkAnswer(selectedIndex) {
+            // Prevent multiple answers
+            if (hasAnswered) return;  // Exit the function early
+            hasAnswered = true;
+
+            const currentQuestion = questions[currentQuestionIndex];
+            const buttons = document.querySelectorAll('.answer-btn');
+            // querySelectorAll returns ALL elements matching the selector
+
+            // Disable all buttons
+            buttons.forEach(button => {
+                button.disabled = true;
+            });
+
+            // Get the feedback element
+            const feedback = document.getElementById('feedback');
+
+            // Check if the answer is correct
+            if (selectedIndex === currentQuestion.correct) {
+                // Correct answer!
+                score++;
+                document.getElementById('score').textContent = score;
+
+                // Add 'correct' class to the selected button
+                buttons[selectedIndex].classList.add('correct');
+
+                // Show success feedback
+                feedback.textContent = '✓ Correct! ' + currentQuestion.explanation;
+                feedback.className = 'feedback correct';
+            } else {
+                // Wrong answer
+                // Add 'wrong' class to selected button
+                buttons[selectedIndex].classList.add('wrong');
+
+                // Show the correct answer
+                buttons[currentQuestion.correct].classList.add('correct');
+
+                // Show error feedback
+                feedback.textContent = '✗ Incorrect. ' + currentQuestion.explanation;
+                feedback.className = 'feedback wrong';
+            }
+
+            // Show the "Next Question" button
+            const nextBtn = document.getElementById('next-btn');
+            nextBtn.style.display = 'block';
+
+            // Change button text if it's the last question
+            if (currentQuestionIndex === questions.length - 1) {
+                nextBtn.textContent = 'See Results';
+            }
+        }
+
+        /*
+            This function moves to the next question or shows results.
+            It runs when the user clicks "Next Question".
+        */
+        function nextQuestion() {
+            currentQuestionIndex++;
+
+            // Check if there are more questions
+            if (currentQuestionIndex < questions.length) {
+                displayQuestion();
+            } else {
+                // Quiz is complete - show results
+                showResults();
+            }
+        }
+
+        /*
+            This function displays the final results screen.
+        */
+        function showResults() {
+            // Hide the quiz content
+            document.getElementById('quiz-content').style.display = 'none';
+
+            // Show the results screen
+            const results = document.getElementById('results');
+            results.style.display = 'block';
+
+            // Calculate and display the percentage
+            const percentage = Math.round((score / questions.length) * 100);
+            document.getElementById('final-score').textContent = percentage + '%';
+
+            // Update the score summary text
+            document.getElementById('score-summary').textContent =
+                `You got ${score} out of ${questions.length} correct`;
+
+            // Display a message based on the score
+            const message = document.getElementById('result-message');
+            if (percentage === 100) {
+                message.textContent = "Perfect score! You're ready for the SAT!";
+            } else if (percentage >= 80) {
+                message.textContent = "Great job! You have a solid understanding of these concepts.";
+            } else if (percentage >= 60) {
+                message.textContent = "Good effort! Review the topics you missed and try again.";
+            } else {
+                message.textContent = "Keep practicing! Review the explanations and try again.";
+            }
+
+            // Update progress bar to 100%
+            document.getElementById('progress-fill').style.width = '100%';
+        }
+
+        /*
+            This function restarts the quiz from the beginning.
+            It runs when the user clicks "Try Again".
+        */
+        function restartQuiz() {
+            // Reset all variables
+            currentQuestionIndex = 0;
+            score = 0;
+            hasAnswered = false;
+
+            // Reset the displayed score
+            document.getElementById('score').textContent = '0';
+
+            // Hide results, show quiz
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('quiz-content').style.display = 'block';
+
+            // Reset the next button text
+            document.getElementById('next-btn').textContent = 'Next Question';
+
+            // Display the first question
+            displayQuestion();
+        }
+
+        /*
+            ============================================
+            INITIALIZE THE QUIZ
+            ============================================
+            This code runs when the page first loads.
+        */
+
+        // Set the total number of questions in the display
+        document.getElementById('total').textContent = questions.length;
+        document.getElementById('total-questions').textContent = questions.length;
+
+        // Display the first question
+        displayQuestion();
+    </script>
+</body>
+</html>

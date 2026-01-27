@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Test - SAT Prep</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/questions.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/dashboard.html" class="nav-brand">SAT Prep</a>
+        <div class="nav-user">
+            <span id="username-display">Student</span>
+            <a href="/dashboard.html" class="btn btn-outline">Back to Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="review-container">
+        <div class="review-header">
+            <h1 id="test-name">Loading...</h1>
+            <div class="review-stats">
+                <div class="review-stat">
+                    <span class="review-stat-value" id="score">-</span>
+                    <span class="review-stat-label">Score</span>
+                </div>
+                <div class="review-stat">
+                    <span class="review-stat-value" id="percentage">-</span>
+                    <span class="review-stat-label">Percentage</span>
+                </div>
+                <div class="review-stat">
+                    <span class="review-stat-value" id="status">-</span>
+                    <span class="review-stat-label">Status</span>
+                </div>
+            </div>
+            <p class="review-date" id="date"></p>
+        </div>
+
+        <div class="review-filters">
+            <button class="filter-btn active" onclick="showAll()">All Questions</button>
+            <button class="filter-btn" onclick="showWrong()">Missed Only</button>
+            <button class="filter-btn" onclick="showCorrect()">Correct Only</button>
+        </div>
+
+        <div id="questions-list" class="questions-list">
+            <p class="loading">Loading questions...</p>
+        </div>
+
+        <div class="review-actions">
+            <button class="btn btn-primary" id="retry-btn">Try Again</button>
+            <a href="/dashboard.html" class="btn btn-outline">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        let testResult = null;
+        let currentFilter = 'all';
+        let questions = [];
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const resultId = urlParams.get('id');
+
+        async function init() {
+            const userResponse = await fetch('/api/user');
+            const userData = await userResponse.json();
+
+            if (!userData.loggedIn) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            document.getElementById('username-display').textContent = userData.username;
+
+            if (!resultId) {
+                document.getElementById('questions-list').innerHTML =
+                    '<p class="error">No test ID provided. <a href="/dashboard.html">Go back</a></p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/result/${resultId}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    document.getElementById('questions-list').innerHTML =
+                        '<p class="error">Test not found. <a href="/dashboard.html">Go back</a></p>';
+                    return;
+                }
+
+                testResult = data.result;
+
+                // Load questions for this subject and level
+                if (QUESTIONS && testResult.subject && testResult.level) {
+                    questions = QUESTIONS[testResult.subject][testResult.level] || [];
+                }
+
+                displayTestInfo();
+                displayQuestions();
+
+                // Set up retry button
+                document.getElementById('retry-btn').onclick = () => {
+                    window.location.href = `/quiz.html?subject=${testResult.subject}&level=${testResult.level}`;
+                };
+
+            } catch (error) {
+                console.error('Error loading test:', error);
+                document.getElementById('questions-list').innerHTML =
+                    '<p class="error">Error loading test. <a href="/dashboard.html">Go back</a></p>';
+            }
+        }
+
+        function displayTestInfo() {
+            document.getElementById('test-name').textContent = testResult.test_name || 'Quiz Review';
+            document.getElementById('score').textContent = `${testResult.score}/${testResult.total_questions}`;
+            document.getElementById('percentage').textContent = `${testResult.percentage}%`;
+            document.getElementById('status').textContent = testResult.passed ? '✓ Passed' : '✗ Failed';
+            document.getElementById('status').style.color = testResult.passed ? '#28a745' : '#dc3545';
+
+            const date = new Date(testResult.completed_at);
+            document.getElementById('date').textContent = `Completed on ${date.toLocaleDateString('en-US', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            })}`;
+        }
+
+        function displayQuestions() {
+            const container = document.getElementById('questions-list');
+            container.innerHTML = '';
+
+            const letters = ['A', 'B', 'C', 'D'];
+            const wrongIds = testResult.wrong_answers || [];
+            const quizQuestionIds = testResult.quiz_questions || [];
+
+            if (quizQuestionIds.length === 0 || questions.length === 0) {
+                container.innerHTML = `
+                    <p class="no-data">
+                        Question details not available for this test.
+                    </p>`;
+                return;
+            }
+
+            let questionNumber = 0;
+
+            quizQuestionIds.forEach(qId => {
+                const question = questions.find(q => q.id === qId);
+                if (!question) return;
+
+                questionNumber++;
+                const isWrong = wrongIds.includes(qId);
+
+                if (currentFilter === 'wrong' && !isWrong) return;
+                if (currentFilter === 'correct' && isWrong) return;
+
+                const card = document.createElement('div');
+                card.className = `review-question-card ${isWrong ? 'wrong' : 'correct'}`;
+
+                let answersHtml = '';
+                question.answers.forEach((answer, idx) => {
+                    const isCorrectAnswer = idx === question.correct;
+                    let answerClass = isCorrectAnswer ? 'correct-answer' : '';
+
+                    answersHtml += `
+                        <div class="review-answer ${answerClass}">
+                            <span class="review-letter">${letters[idx]}</span>
+                            <span class="review-text">${answer}</span>
+                            ${isCorrectAnswer ? '<span class="correct-badge">Correct</span>' : ''}
+                        </div>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="review-question-header">
+                        <span class="review-question-number">Question ${questionNumber}</span>
+                        <span class="review-status ${isWrong ? 'status-wrong' : 'status-correct'}">
+                            ${isWrong ? 'Incorrect' : 'Correct'}
+                        </span>
+                    </div>
+                    <div class="review-question-text">${question.question}</div>
+                    <div class="review-answers">${answersHtml}</div>
+                    <div class="review-explanation">
+                        <strong>Explanation:</strong> ${question.explanation}
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+
+            if (container.children.length === 0) {
+                container.innerHTML = '<p class="no-results-filter">No questions match this filter.</p>';
+            }
+        }
+
+        function showAll() {
+            currentFilter = 'all';
+            updateFilterButtons();
+            displayQuestions();
+        }
+
+        function showWrong() {
+            currentFilter = 'wrong';
+            updateFilterButtons();
+            displayQuestions();
+        }
+
+        function showCorrect() {
+            currentFilter = 'correct';
+            updateFilterButtons();
+            displayQuestions();
+        }
+
+        function updateFilterButtons() {
+            document.querySelectorAll('.filter-btn').forEach((btn, idx) => {
+                btn.classList.remove('active');
+                if (idx === 0 && currentFilter === 'all') btn.classList.add('active');
+                if (idx === 1 && currentFilter === 'wrong') btn.classList.add('active');
+                if (idx === 2 && currentFilter === 'correct') btn.classList.add('active');
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
