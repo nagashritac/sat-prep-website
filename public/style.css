@@ -6,6 +6,8 @@
     It's in the "public" folder so browsers can download it.
 */
 
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap');
+
 /* ============================================
    BASE STYLES
    ============================================ */
@@ -16,13 +18,13 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    font-family: 'Playfair Display', Georgia, serif;
+    background: linear-gradient(135deg, #9b87c9 0%, #d4cce6 100%);
     min-height: 100vh;
 }
 
 a {
-    color: #667eea;
+    color: #7c3aed;
     text-decoration: none;
 }
 
@@ -46,7 +48,7 @@ a:hover {
 .nav-brand {
     font-size: 24px;
     font-weight: bold;
-    color: #1e3c72;
+    color: #10b981;
     text-decoration: none;
 }
 
@@ -78,8 +80,8 @@ a:hover {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: #fce158;
+    color: #333;
 }
 
 .btn-primary:hover {
@@ -102,12 +104,12 @@ a:hover {
 
 .btn-outline {
     background: transparent;
-    color: #1e3c72;
-    border-color: #1e3c72;
+    color: #7c3aed;
+    border-color: #7c3aed;
 }
 
 .btn-outline:hover {
-    background: #1e3c72;
+    background: #7c3aed;
     color: white;
     text-decoration: none;
 }
@@ -131,7 +133,7 @@ a:hover {
 
 .auth-card {
     background: white;
-    border-radius: 20px;
+    border-radius: 0;
     padding: 40px;
     width: 100%;
     max-width: 420px;
@@ -139,7 +141,7 @@ a:hover {
 }
 
 .auth-card h1 {
-    color: #1e3c72;
+    color: #047857;
     text-align: center;
     margin-bottom: 10px;
     font-size: 32px;
@@ -173,7 +175,7 @@ a:hover {
 
 .form-group input:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #ffc107;
 }
 
 .error-message {
@@ -181,6 +183,28 @@ a:hover {
     text-align: center;
     margin-bottom: 15px;
     min-height: 20px;
+}
+
+.success-message {
+    color: #28a745;
+    text-align: center;
+    margin-bottom: 15px;
+    min-height: 20px;
+}
+
+.auth-links {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.auth-links a {
+    color: #7c3aed;
+}
+
+.auth-links .separator {
+    margin: 0 10px;
+    color: #ccc;
 }
 
 .auth-card .btn {
@@ -214,7 +238,7 @@ a:hover {
 }
 
 .welcome-section h1 {
-    color: #1e3c72;
+    color: #7c3aed;
     margin-bottom: 10px;
 }
 
@@ -242,7 +266,7 @@ a:hover {
 .stat-value {
     font-size: 42px;
     font-weight: bold;
-    color: #667eea;
+    color: #ffc107;
 }
 
 .stat-label {
@@ -259,7 +283,7 @@ a:hover {
 }
 
 .history-section h2 {
-    color: #1e3c72;
+    color: #7c3aed;
     margin-bottom: 20px;
 }
 
@@ -341,13 +365,13 @@ a:hover {
 }
 
 .quiz-header h1 {
-    color: #1e3c72;
+    color: #7c3aed;
     font-size: 28px;
     margin-bottom: 15px;
 }
 
 .score-display {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ffc107 0%, #a78bfa 100%);
     color: white;
     padding: 12px 25px;
     border-radius: 50px;
@@ -373,7 +397,7 @@ a:hover {
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ffc107 0%, #a78bfa 100%);
     border-radius: 4px;
     transition: width 0.5s ease;
     width: 0%;
@@ -406,7 +430,7 @@ a:hover {
 }
 
 .answer-btn .letter {
-    background: #1e3c72;
+    background: #7c3aed;
     color: white;
     width: 32px;
     height: 32px;
@@ -420,7 +444,7 @@ a:hover {
 }
 
 .answer-btn:hover:not(:disabled) {
-    border-color: #1e3c72;
+    border-color: #7c3aed;
     background: #e8f0fe;
     transform: translateX(5px);
 }
@@ -484,7 +508,7 @@ a:hover {
 }
 
 .results h2 {
-    color: #1e3c72;
+    color: #7c3aed;
     font-size: 32px;
     margin-bottom: 20px;
 }
@@ -492,7 +516,7 @@ a:hover {
 .final-score {
     font-size: 72px;
     font-weight: bold;
-    color: #667eea;
+    color: #ffc107;
     margin-bottom: 10px;
 }
 
@@ -525,7 +549,7 @@ a:hover {
 }
 
 .wrong-answers-section h3 {
-    color: #1e3c72;
+    color: #7c3aed;
     margin-bottom: 15px;
     text-align: center;
 }
@@ -581,7 +605,7 @@ a:hover {
 }
 
 .history-card-btn:hover {
-    border-color: #667eea;
+    border-color: #ffc107;
     box-shadow: 0 5px 20px rgba(102, 126, 234, 0.15);
     transform: translateX(5px);
 }
@@ -600,7 +624,7 @@ a:hover {
 .history-test-name {
     font-size: 18px;
     font-weight: 600;
-    color: #1e3c72;
+    color: #7c3aed;
     margin-bottom: 4px;
 }
 
@@ -637,7 +661,7 @@ a:hover {
 }
 
 .history-card-btn:hover .history-arrow {
-    color: #667eea;
+    color: #ffc107;
 }
 
 
@@ -660,7 +684,7 @@ a:hover {
 }
 
 .review-header h1 {
-    color: #1e3c72;
+    color: #7c3aed;
     font-size: 28px;
     margin-bottom: 20px;
 }
@@ -681,7 +705,7 @@ a:hover {
 .review-stat-value {
     font-size: 32px;
     font-weight: bold;
-    color: #667eea;
+    color: #ffc107;
 }
 
 .review-stat-label {
@@ -712,12 +736,12 @@ a:hover {
 }
 
 .filter-btn:hover {
-    border-color: #667eea;
+    border-color: #ffc107;
 }
 
 .filter-btn.active {
-    background: #667eea;
-    border-color: #667eea;
+    background: #ffc107;
+    border-color: #ffc107;
     color: white;
 }
 
@@ -800,7 +824,7 @@ a:hover {
 .review-letter {
     width: 28px;
     height: 28px;
-    background: #1e3c72;
+    background: #7c3aed;
     color: white;
     border-radius: 50%;
     display: flex;
@@ -854,7 +878,7 @@ a:hover {
 }
 
 .error a {
-    color: #667eea;
+    color: #ffc107;
 }
 
 
@@ -883,11 +907,11 @@ a:hover {
 }
 
 .tab-btn:hover {
-    border-color: #667eea;
+    border-color: #ffc107;
 }
 
 .tab-btn.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ffc107 0%, #a78bfa 100%);
     border-color: transparent;
     color: white;
 }
@@ -909,7 +933,7 @@ a:hover {
 }
 
 .levels-section h2 {
-    color: #1e3c72;
+    color: #7c3aed;
     margin-bottom: 25px;
     text-align: center;
 }
@@ -934,7 +958,7 @@ a:hover {
 }
 
 .level-card.unlocked:hover {
-    border-color: #667eea;
+    border-color: #ffc107;
     transform: translateY(-5px);
     box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
 }
@@ -958,7 +982,7 @@ a:hover {
 
 .level-number {
     font-weight: 700;
-    color: #1e3c72;
+    color: #7c3aed;
     font-size: 16px;
 }
 
@@ -993,7 +1017,7 @@ a:hover {
 
 .level-score {
     font-weight: 600;
-    color: #667eea;
+    color: #ffc107;
     margin-bottom: 8px;
 }
 
@@ -1007,7 +1031,7 @@ a:hover {
 
 .level-progress-bar {
     height: 100%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ffc107 0%, #a78bfa 100%);
     border-radius: 3px;
     transition: width 0.5s ease;
 }
@@ -1032,7 +1056,7 @@ a:hover {
 }
 
 .stats-section h3 {
-    color: #1e3c72;
+    color: #7c3aed;
     margin-bottom: 20px;
     text-align: center;
 }
@@ -1050,7 +1074,7 @@ a:hover {
 }
 
 .level-indicator .level-badge {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ffc107 0%, #a78bfa 100%);
     color: white;
     padding: 5px 15px;
     border-radius: 20px;
@@ -1101,7 +1125,7 @@ a:hover {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ffc107 0%, #a78bfa 100%);
     color: white;
     padding: 12px 25px;
     border-radius: 30px;
@@ -1239,7 +1263,7 @@ a:hover {
 }
 
 .pause-modal h2 {
-    color: #1e3c72;
+    color: #7c3aed;
     margin-bottom: 10px;
 }
 
@@ -1267,7 +1291,7 @@ a:hover {
 .pause-stat-value {
     font-size: 24px;
     font-weight: bold;
-    color: #667eea;
+    color: #ffc107;
 }
 
 .pause-stat-label {
@@ -1322,7 +1346,7 @@ a:hover {
 .paused-quiz-title {
     font-size: 18px;
     font-weight: 600;
-    color: #1e3c72;
+    color: #7c3aed;
     margin-bottom: 8px;
     display: flex;
     align-items: center;
@@ -1357,7 +1381,7 @@ a:hover {
 
 .paused-progress-bar {
     height: 100%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #ffc107 0%, #a78bfa 100%);
     border-radius: 3px;
 }
 

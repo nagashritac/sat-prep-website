@@ -14,6 +14,8 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
 const path = require('path');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 const app = express();
 const db = new Database('satprep.db');
@@ -96,6 +98,19 @@ db.exec(`
         unanswered TEXT,
         time_remaining INTEGER NOT NULL,
         paused_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+`);
+
+// Password reset tokens table
+db.exec(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token TEXT UNIQUE NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
     )
 `);
@@ -567,6 +582,236 @@ app.delete('/api/paused-quiz/:id', requireLogin, (req, res) => {
     } catch (error) {
         console.error('Delete paused quiz error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// ============================================
+// EMAIL CONFIGURATION
+// ============================================
+
+// Configure email transporter
+// For production, use environment variables for these settings
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER || 'your-email@gmail.com',
+        pass: process.env.EMAIL_PASS || 'your-app-password'
+    }
+});
+
+// Generate secure random token
+function generateResetToken() {
+    return crypto.randomBytes(32).toString('hex');
+}
+
+// Get base URL for emails
+function getBaseUrl(req) {
+    return `${req.protocol}://${req.get('host')}`;
+}
+
+// ============================================
+// PASSWORD RESET ROUTES
+// ============================================
+
+// Forgot Password - send reset email
+app.post('/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
+
+        // Find user by email
+        const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+        const user = stmt.get(email);
+
+        if (!user) {
+            // Don't reveal if email exists or not for security
+            return res.json({
+                success: true,
+                message: 'If an account with that email exists, a password reset link has been sent.'
+            });
+        }
+
+        // Generate reset token
+        const token = generateResetToken();
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+        // Delete any existing tokens for this user
+        db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(user.id);
+
+        // Save new token
+        const insertStmt = db.prepare(`
+            INSERT INTO password_resets (user_id, token, expires_at)
+            VALUES (?, ?, ?)
+        `);
+        insertStmt.run(user.id, token, expiresAt.toISOString());
+
+        // Send email
+        const resetUrl = `${getBaseUrl(req)}/reset-password.html?token=${token}`;
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER || 'your-email@gmail.com',
+            to: email,
+            subject: 'SAT Prep - Password Reset',
+            html: `
+                <div style="font-family: 'Playfair Display', Georgia, serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h1 style="color: #047857;">SAT Prep</h1>
+                    <h2 style="color: #333;">Password Reset Request</h2>
+                    <p>Hi ${user.username},</p>
+                    <p>You requested to reset your password. Click the button below to create a new password:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${resetUrl}" style="background: #fce158; color: #333; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
+                    </div>
+                    <p>This link will expire in 1 hour.</p>
+                    <p>If you didn't request this, you can safely ignore this email.</p>
+                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
+                    <p style="color: #666; font-size: 12px;">If the button doesn't work, copy and paste this link into your browser: ${resetUrl}</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.json({
+            success: true,
+            message: 'If an account with that email exists, a password reset link has been sent.'
+        });
+
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ success: false, message: 'Error sending email. Please try again later.' });
+    }
+});
+
+// Verify reset token
+app.get('/api/verify-reset-token/:token', (req, res) => {
+    try {
+        const { token } = req.params;
+
+        const stmt = db.prepare(`
+            SELECT pr.*, u.username
+            FROM password_resets pr
+            JOIN users u ON pr.user_id = u.id
+            WHERE pr.token = ? AND pr.used = 0
+        `);
+        const resetRecord = stmt.get(token);
+
+        if (!resetRecord) {
+            return res.json({ valid: false, message: 'Invalid or expired reset link' });
+        }
+
+        // Check if expired
+        if (new Date(resetRecord.expires_at) < new Date()) {
+            return res.json({ valid: false, message: 'This reset link has expired' });
+        }
+
+        res.json({ valid: true, username: resetRecord.username });
+
+    } catch (error) {
+        console.error('Verify token error:', error);
+        res.status(500).json({ valid: false, message: 'Server error' });
+    }
+});
+
+// Reset password with token
+app.post('/reset-password', async (req, res) => {
+    try {
+        const { token, password } = req.body;
+
+        if (!token || !password) {
+            return res.status(400).json({ success: false, message: 'Token and password are required' });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+        }
+
+        // Find valid token
+        const stmt = db.prepare(`
+            SELECT * FROM password_resets
+            WHERE token = ? AND used = 0
+        `);
+        const resetRecord = stmt.get(token);
+
+        if (!resetRecord) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired reset link' });
+        }
+
+        // Check if expired
+        if (new Date(resetRecord.expires_at) < new Date()) {
+            return res.status(400).json({ success: false, message: 'This reset link has expired' });
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Update user's password
+        db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, resetRecord.user_id);
+
+        // Mark token as used
+        db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(resetRecord.id);
+
+        res.json({ success: true, message: 'Password has been reset successfully!' });
+
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Forgot Username - send username reminder email
+app.post('/forgot-username', async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
+
+        // Find user by email
+        const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+        const user = stmt.get(email);
+
+        if (!user) {
+            // Don't reveal if email exists or not for security
+            return res.json({
+                success: true,
+                message: 'If an account with that email exists, your username has been sent.'
+            });
+        }
+
+        // Send email with username
+        const mailOptions = {
+            from: process.env.EMAIL_USER || 'your-email@gmail.com',
+            to: email,
+            subject: 'SAT Prep - Username Reminder',
+            html: `
+                <div style="font-family: 'Playfair Display', Georgia, serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h1 style="color: #047857;">SAT Prep</h1>
+                    <h2 style="color: #333;">Username Reminder</h2>
+                    <p>Hi there,</p>
+                    <p>You requested a reminder of your username. Here it is:</p>
+                    <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f5f5f5; border-radius: 10px;">
+                        <p style="font-size: 24px; font-weight: bold; color: #7c3aed; margin: 0;">${user.username}</p>
+                    </div>
+                    <p>You can now <a href="${getBaseUrl(req)}/login.html" style="color: #7c3aed;">log in</a> with this username.</p>
+                    <p>If you didn't request this, you can safely ignore this email.</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.json({
+            success: true,
+            message: 'If an account with that email exists, your username has been sent.'
+        });
+
+    } catch (error) {
+        console.error('Forgot username error:', error);
+        res.status(500).json({ success: false, message: 'Error sending email. Please try again later.' });
     }
 });
 
