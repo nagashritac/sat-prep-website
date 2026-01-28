@@ -610,6 +610,22 @@ function getBaseUrl(req) {
 }
 
 // ============================================
+// EMAIL TEST ENDPOINT (for debugging)
+// ============================================
+
+app.get('/api/test-email-config', (req, res) => {
+    const emailUser = process.env.EMAIL_USER;
+    const emailPass = process.env.EMAIL_PASS;
+
+    res.json({
+        emailUserSet: !!emailUser,
+        emailUserValue: emailUser ? emailUser.substring(0, 3) + '***' : 'NOT SET',
+        emailPassSet: !!emailPass,
+        emailPassLength: emailPass ? emailPass.length : 0
+    });
+});
+
+// ============================================
 // PASSWORD RESET ROUTES
 // ============================================
 
@@ -617,6 +633,7 @@ function getBaseUrl(req) {
 app.post('/forgot-password', async (req, res) => {
     try {
         const { email } = req.body;
+        console.log('[Forgot Password] Request received for email:', email);
 
         if (!email) {
             return res.status(400).json({ success: false, message: 'Email is required' });
@@ -627,12 +644,15 @@ app.post('/forgot-password', async (req, res) => {
         const user = stmt.get(email);
 
         if (!user) {
+            console.log('[Forgot Password] No user found with email:', email);
             // Don't reveal if email exists or not for security
             return res.json({
                 success: true,
                 message: 'If an account with that email exists, a password reset link has been sent.'
             });
         }
+
+        console.log('[Forgot Password] User found:', user.username);
 
         // Generate reset token
         const token = generateResetToken();
@@ -672,7 +692,12 @@ app.post('/forgot-password', async (req, res) => {
             `
         };
 
+        console.log('[Forgot Password] Attempting to send email to:', email);
+        console.log('[Forgot Password] EMAIL_USER configured:', process.env.EMAIL_USER ? 'Yes' : 'No');
+        console.log('[Forgot Password] EMAIL_PASS configured:', process.env.EMAIL_PASS ? 'Yes' : 'No');
+
         await transporter.sendMail(mailOptions);
+        console.log('[Forgot Password] Email sent successfully to:', email);
 
         res.json({
             success: true,
@@ -680,7 +705,8 @@ app.post('/forgot-password', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Forgot password error:', error);
+        console.error('[Forgot Password] ERROR sending email:', error.message);
+        console.error('[Forgot Password] Full error:', error);
         res.status(500).json({ success: false, message: 'Error sending email. Please try again later.' });
     }
 });
