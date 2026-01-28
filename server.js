@@ -14,7 +14,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
 const path = require('path');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const crypto = require('crypto');
 
 const app = express();
@@ -586,18 +586,11 @@ app.delete('/api/paused-quiz/:id', requireLogin, (req, res) => {
 });
 
 // ============================================
-// EMAIL CONFIGURATION
+// EMAIL CONFIGURATION (using Resend)
 // ============================================
 
-// Configure email transporter
-// For production, use environment variables for these settings
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER || 'your-email@gmail.com',
-        pass: process.env.EMAIL_PASS || 'your-app-password'
-    }
-});
+// Initialize Resend with API key from environment variable
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Generate secure random token
 function generateResetToken() {
@@ -614,14 +607,11 @@ function getBaseUrl(req) {
 // ============================================
 
 app.get('/api/test-email-config', (req, res) => {
-    const emailUser = process.env.EMAIL_USER;
-    const emailPass = process.env.EMAIL_PASS;
+    const apiKey = process.env.RESEND_API_KEY;
 
     res.json({
-        emailUserSet: !!emailUser,
-        emailUserValue: emailUser ? emailUser.substring(0, 3) + '***' : 'NOT SET',
-        emailPassSet: !!emailPass,
-        emailPassLength: emailPass ? emailPass.length : 0
+        resendApiKeySet: !!apiKey,
+        resendApiKeyPrefix: apiKey ? apiKey.substring(0, 6) + '***' : 'NOT SET'
     });
 });
 
@@ -668,11 +658,14 @@ app.post('/forgot-password', async (req, res) => {
         `);
         insertStmt.run(user.id, token, expiresAt.toISOString());
 
-        // Send email
+        // Send email using Resend
         const resetUrl = `${getBaseUrl(req)}/reset-password.html?token=${token}`;
 
-        const mailOptions = {
-            from: process.env.EMAIL_USER || 'your-email@gmail.com',
+        console.log('[Forgot Password] Attempting to send email to:', email);
+        console.log('[Forgot Password] RESEND_API_KEY configured:', process.env.RESEND_API_KEY ? 'Yes' : 'No');
+
+        const { data, error } = await resend.emails.send({
+            from: 'SAT Prep <onboarding@resend.dev>',
             to: email,
             subject: 'SAT Prep - Password Reset',
             html: `
@@ -690,14 +683,14 @@ app.post('/forgot-password', async (req, res) => {
                     <p style="color: #666; font-size: 12px;">If the button doesn't work, copy and paste this link into your browser: ${resetUrl}</p>
                 </div>
             `
-        };
+        });
 
-        console.log('[Forgot Password] Attempting to send email to:', email);
-        console.log('[Forgot Password] EMAIL_USER configured:', process.env.EMAIL_USER ? 'Yes' : 'No');
-        console.log('[Forgot Password] EMAIL_PASS configured:', process.env.EMAIL_PASS ? 'Yes' : 'No');
+        if (error) {
+            console.error('[Forgot Password] Resend error:', error);
+            throw new Error(error.message);
+        }
 
-        await transporter.sendMail(mailOptions);
-        console.log('[Forgot Password] Email sent successfully to:', email);
+        console.log('[Forgot Password] Email sent successfully! ID:', data.id);
 
         res.json({
             success: true,
@@ -808,9 +801,9 @@ app.post('/forgot-username', async (req, res) => {
             });
         }
 
-        // Send email with username
-        const mailOptions = {
-            from: process.env.EMAIL_USER || 'your-email@gmail.com',
+        // Send email with username using Resend
+        const { data, error } = await resend.emails.send({
+            from: 'SAT Prep <onboarding@resend.dev>',
             to: email,
             subject: 'SAT Prep - Username Reminder',
             html: `
@@ -826,9 +819,14 @@ app.post('/forgot-username', async (req, res) => {
                     <p>If you didn't request this, you can safely ignore this email.</p>
                 </div>
             `
-        };
+        });
 
-        await transporter.sendMail(mailOptions);
+        if (error) {
+            console.error('[Forgot Username] Resend error:', error);
+            throw new Error(error.message);
+        }
+
+        console.log('[Forgot Username] Email sent successfully! ID:', data.id);
 
         res.json({
             success: true,
